@@ -55,39 +55,32 @@ def output_counter_verilog(n: int, bipolar: bool, ID: str = ""):
 
 
 class SNG:
-    def __init__(self, rns, pcc, rns_n, pcc_n, **kwargs):
+    def __init__(self, rns, pcc, rns_precision, pcc_precision, **kwargs):
         """
         :param RNS.RNS rns: RNS class for the SNG (see rns_utils)
         :param PCC.PCC pcc: PCC class for the SNG (see pcc_utils)
-        :param int rns_n: bit-width of RNS
-        :param int pcc_n: bit-width of PCC
+        :param int rns_precision: bit-width of RNS
+        :param int pcc_precision: bit-width of PCC
         :param kwargs: Extra parameters mainly for hardware RNSs. Current choices include:
             feedback: LFSR feedback type (internal: 'i', external: 'e' or all: 'a')
             seqs: Pre-loaded seqs (seqs should correspond to n-bit RNS). (Note this class now automatically loads seqs.
             seq_idx: index of specific seq in seqs that should be used; seqs should be specified when using this.
         """
-        assert rns_n >= pcc_n
+        assert rns_precision >= pcc_precision
         self.q_func = q_floor
 
-        self.rns = rns(rns_n, **kwargs)
-        self.pcc = pcc(pcc_n)
-
-        if rns_n > 16:
-            self.dtype = np.int
-        elif rns_n > 8:
-            self.dtype = np.int16
-        else:
-            self.dtype = np.int8
+        self.rns = rns(rns_precision, **kwargs)
+        self.pcc = pcc(pcc_precision)
 
         self.vdc_seq = kwargs.get("vdc_seq")
 
-    def gen_SN(self, values, N, bipolar, share, mask) -> np.ndarray:
+    def gen_SN(self, values, SN_length, bipolar, share_RNS, RNS_mask) -> np.ndarray:
         """
         :param numpy.ndarray values:
-        :param int N:
+        :param int SN_length:
         :param bool bipolar:
-        :param bool share:
-        :param np.ndarray mask:
+        :param bool share_RNS:
+        :param np.ndarray RNS_mask:
         :return:
         """
         # quantize the input values
@@ -100,10 +93,10 @@ class SNG:
         assert (ps <= 1).all(), ps
 
         # transform the fixed point probability values to integer format
-        Cs = (ps * (2**self.pcc.n)).astype(self.dtype)
+        Cs = (ps * (2**self.pcc.n)).astype(int)
 
         # generate RNs
-        Rs = self.rns.gen_RN(N, ps.shape, share, mask)
+        Rs = self.rns.gen_RN(SN_length, ps.shape, share_RNS, RNS_mask)
 
         # the Rs must also quantized to fit into the PCC if rns.n != pcc.n. Do this by truncating the MSBs of the Rs.
         # To accomplish MSB truncation, a 1s mask of length pcc.n can be bitwise AND'ed with Rs
@@ -113,7 +106,7 @@ class SNG:
 
         SNs = self.pcc.forward(Rs, Cs)
 
-        assert SNs.shape == (*values.shape, N), f"SN Shape: {SNs.shape} was expected to be ({values.shape}, {N})."
+        assert SNs.shape == (*values.shape, SN_length), f"SN Shape: {SNs.shape} was expected to be ({values.shape}, {SN_length})."
         return SNs
 
     def gen_verilog(self):

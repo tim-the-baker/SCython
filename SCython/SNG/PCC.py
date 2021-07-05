@@ -2,7 +2,11 @@ import numpy as np
 
 class PCC:
     """ Abstract class for stochastic computing probability conversion circuits """
-    def __init__(self, n: int = None):
+    def __init__(self, n):
+        """
+        :param n:
+        :param can_generate_all_1s:
+        """
         self.n = n
         self.name: str = ""
         self.legend: str = ""
@@ -36,7 +40,6 @@ class PCC:
         return f"### PCC Info: name={self.name} n={self.n}"
 
 # TODO: Finish updating this class for NumPy
-'''
 class WBG(PCC):
     def __init__(self, n):
         super().__init__(n)
@@ -44,12 +47,17 @@ class WBG(PCC):
         self.legend = "WBG"
 
     def forward(self, Rs, Cs):
-        # SNs = np.full(Rs.shape, -1.)
-        Rs = np.log2(Rs,  where=(Rs != 0)).astype(int)
-        SNs2 = np.bitwise_and(np.right_shift(Cs.T, Rs.T), 1).T
-        SNs2[Cs == pow(2, n)] = np.ones(Rs.shape[-1])
+        SNs = np.full(Rs.shape, -1, dtype=int)
+        np.log2(Rs,  where=(Rs != 0), out=SNs, casting='unsafe')
+        SNs = np.bitwise_and(np.right_shift(Cs.T, SNs.T), 1).T
 
-        return SNs2
+        # the following line handles the case when the input value is = 1. In real hardware, a real WBG cannot handle
+        # this situation. For instance, a standard 4-bit WBG can generate unipolar SNs with value 0, 1/16, 2/16, ...,
+        # 15/16, but not with value 16/16 because an extra input bit would be needed. However, relatively little hardware
+        # modification would needed to handle the value = 16/16 case (just 1 OR gate would be needed).
+        SNs[Cs == pow(2, self.n)] = np.ones(Rs.shape[-1])
+
+        return SNs
 
     def gen_verilog(self, inv_outs, ID, share_r, write_submodules, corr_adj, share_p1=True):
         assert share_r, "Only sharing R is implemented at the moment."
@@ -116,7 +124,6 @@ class WBG(PCC):
 
         file_string += f"endmodule\n\n\n"
         return file_string
-'''
 
 class Comparator(PCC):
     """

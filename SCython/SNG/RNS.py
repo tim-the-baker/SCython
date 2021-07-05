@@ -1,4 +1,5 @@
 import numpy as np
+import SCython.IO.seq_utils as seq_utils
 import math
 
 class RNS:
@@ -97,6 +98,8 @@ class RNS:
         return self._max_N
 
 
+# TODO: Update this class from PyTorch
+'''
 class Bernoulli_RNS(RNS):
     """
     Software implemented Bernoulli-type RNS. This RNS is mainly used to check theoretical derivations made using the
@@ -118,7 +121,7 @@ class Bernoulli_RNS(RNS):
     def _gen_RN(self, N, shape, share):
         if share:
             R = np.random.randint(low=0, high=int(2**self.n), size=N)
-            Rs = np.repeat(R[np.newaxis], axis=0)
+            Rs = np.repeat(R[np.newaxis], repeats=math.prod(shape), axis=0).reshape(*shape, N)
         else:
             Rs = np.random.randint(low=0, high=16, size=(*shape, N))
 
@@ -127,10 +130,9 @@ class Bernoulli_RNS(RNS):
     def gen_verilog(self, IDs=None, verbose=True):
         super().verilog_info(verbose)
         return None
-
+'''
 
 # TODO: Update this class from PyTorch
-'''
 class Hypergeometric_RNS(RNS):
     # software hypergeometric RNG
     def __init__(self, n):
@@ -140,23 +142,19 @@ class Hypergeometric_RNS(RNS):
         self.is_hardware = False
         self._max_N = int(2**self.n)
 
-    def _gen_RN(self, N, shape, share, starts=None, runs=1):
+    def _gen_RN(self, N, SN_array_shape, share_RNS):
         assert N <= self._max_N
-        if share:
-            # next line is slightly complicated due to list comprehension. it's not so bad if you read slowly.
-            Rs = [torch.randperm(self._max_N)[:N].repeat((*shape, 1)) for _ in range(runs)]
-            Rs = torch.stack(Rs)  # convert list of tensors to tensor.
+        if share_RNS:
+            shared_R = np.random.permutation(self._max_N)
+            Rs = np.tile(shared_R, (*SN_array_shape, 1))
         else:
-            Rs = [torch.stack([torch.randperm(self._max_N) for _ in range(shape.numel())]).reshape((*shape, N))
-                  for _ in range(runs)]
-            Rs = torch.stack(Rs)  # convert list of tensors to tensor.
+            Rs = np.array([np.random.permutation(self._max_N)[:N] for _ in range(math.prod(SN_array_shape))]).reshape((*SN_array_shape, N))
 
         return Rs
 
     def gen_verilog(self, verbose=True):
         super().verilog_info(verbose)
         return None
-'''
 
 
 # TODO: Update this class from PyTorch
@@ -345,9 +343,9 @@ class VDC_RNS(RNS):
         self.legend = "VDC"
         self.is_hardware = True
         self._max_N = pow2n
-        self.seq = kwargs.get('vdc_seq')[0:pow2n]
+        self.seq = kwargs.get('vdc_seq')
         if self.seq is None:
-            self.seq = seq_utils.get_vdc(n, verbose=True)[0:pow2n]
+            self.seq = seq_utils.get_vdc(n, verbose=True)
 
     def _gen_RN(self, N, shape, share):
         assert N <= self._max_N
