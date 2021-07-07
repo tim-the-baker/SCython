@@ -1,5 +1,5 @@
 import numpy as np
-import SCython.IO.seq_utils as seq_utils
+from SCython.IO import seq_utils
 import math
 
 class RNS:

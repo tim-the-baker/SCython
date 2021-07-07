@@ -1,19 +1,19 @@
 # TODO update docstrings
 import numpy as np
-import SCython.SNG.RNS as RNS
-import SCython.SNG.PCC as PCC
+from SCython.SNG import RNS, PCC
 
 
 #### Quantization Functions ###
-def q_floor(x, precision) -> np.ndarray:
+def q_floor(x, precision, signed=False) -> np.ndarray:
     """
     truncates x to a specified precision
     :param numpy.ndarray x:
     :param int precision:
+    :param bool signed:
     :return:
     """
     #  truncates x to specified precision
-    pow2n = 2**precision
+    pow2n = 2**(precision - int(signed))
     return np.floor(x*pow2n)/pow2n
 
 

@@ -55,7 +55,7 @@ class WBG(PCC):
         # this situation. For instance, a standard 4-bit WBG can generate unipolar SNs with value 0, 1/16, 2/16, ...,
         # 15/16, but not with value 16/16 because an extra input bit would be needed. However, relatively little hardware
         # modification would needed to handle the value = 16/16 case (just 1 OR gate would be needed).
-        SNs[Cs == pow(2, self.n)] = np.ones(Rs.shape[-1])
+        SNs[Cs == pow(2, self.n)] = 1
 
         return SNs
 

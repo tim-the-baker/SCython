@@ -1,10 +1,6 @@
 import numpy as np
-import SCython.SNG.SNG as SNG
-import SCython.SNG.RNS as RNS
-import SCython.SNG.PCC as PCC
-import SCython.SNG.MSG as MSG
-import SCython.IO.seq_utils as seq_utils
-from SCython import SN_operations
+from SCython.SNG import SNG, RNS, PCC, MSG
+from SCython.IO import seq_utils
 
 # TODO Implement symmetric coefficient in forward method
 class HardwiredMux:
@@ -457,8 +453,8 @@ class CeMux(HardwiredMux):
         :param int pcc_n:
         :param numpy.ndarray vdc_seq:
         """
-        vdc_n = tree_height if pcc_n == None else vdc_n
-        pcc_n = tree_height if pcc_n == None else pcc_n
+        vdc_n = tree_height if pcc_n is None else vdc_n
+        pcc_n = tree_height if pcc_n is None else pcc_n
         data_sng = SNG.SNG(RNS.VDC_RNS, pcc, vdc_n, pcc_n, vdc_seq=vdc_seq)
         select_gen = MSG.Counter_MSG(tree_height, tree_height, weights)
         use_full_corr = True
@@ -495,16 +491,17 @@ class CeMux(HardwiredMux):
         selected_Rs = posneg[0]
         selected_Rs[selected_mask] = posneg[1][selected_mask]
 
-        # Quantize both the Rs and the Bs and convert everything to an integer (quantization is done in fraction domain)
+        # Quantize both the Rs and convert everything to an integer
         # If bipolar is used then we have to drop the precision by 1
         if self.data_sng.pcc.n != self.data_sng.rns.n:
+            print('pcc_n != rns_n')
             selected_Rs = selected_Rs // 2.0**(self.data_sng.rns.n - self.data_sng.pcc.n)
         selected_Bs = (selected_ps * (2 ** self.data_sng.pcc.n)).astype(int)
+
         # Use PCC to convert the selected_Rs and input_values to SNs
         output = self.data_sng.pcc.forward(selected_Rs, selected_Bs)
 
-        # account for XNOR arrays
-        output[selected_mask] = ~output[selected_mask]
+        output[selected_mask] = np.logical_not(output[selected_mask])
 
         return output.astype(int)
 
