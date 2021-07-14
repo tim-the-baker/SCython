@@ -292,22 +292,24 @@ class FSR_RNS(RNS):
 '''
 
 
-# TODO: Update this class from PyTorch
-'''
 class Counter_RNS(RNS):
-    # hardware
+    """
+    RNS class for a Van der Corput low discrepancy sequence source.
+    """
     def __init__(self, n, **kwargs):
         super().__init__(n)
+        pow2n = int(2**n)
         self.name = "Counter"
         self.legend = "Counter"
         self.is_hardware = True
-        self._max_N = kwargs.get('max_N', int(2**n))
+        self._max_N = pow2n
+        self.seq = np.arange(pow2n)
 
-    def _gen_RN(self, N, shape, share, starts=None, runs=1):
+    def _gen_RN(self, N, shape, share):
         assert N <= self._max_N
-        if starts is not None:
-            raise NotImplementedError
-        return torch.arange(N).repeat((runs, *shape, 1))
+        assert share or sum(shape) == 1
+
+        return np.tile(self.seq, reps=math.prod(shape)).reshape(*shape, N)
 
     def gen_verilog(self, IDs=None, verbose=True):
         assert self._max_N == int(2**self.n), "Counter verilog only works for counters that use their whole sequence."
@@ -315,11 +317,11 @@ class Counter_RNS(RNS):
         print("Warning: Counters are generated with a rev_state output (so that VDC can be used). This should be free.")
         file_string = f"module counter (\n" \
                       f"\tinput  clock, reset,\n" \
-                      f"\toutput logic [{n - 1}:0] state,\n" \
-                      f"\toutput logic [{n - 1}:0] rev_state\n);\n" \
+                      f"\toutput logic [{self.n - 1}:0] state,\n" \
+                      f"\toutput logic [{self.n - 1}:0] rev_state\n);\n" \
                       f"\talways_comb begin\n" \
-                      f"\t\tfor (int i = 0; i < {n}; i+=1) begin\n" \
-                      f"\t\t\trev_state[i] = state[{n - 1}-i];\n" \
+                      f"\t\tfor (int i = 0; i < {self.n}; i+=1) begin\n" \
+                      f"\t\t\trev_state[i] = state[{self.n - 1}-i];\n" \
                       f"\t\tend\n" \
                       f"\tend\n\n" \
                       f"\talways_ff @(posedge clock) begin\n" \
@@ -328,7 +330,6 @@ class Counter_RNS(RNS):
                       f"\tend\n" \
                       f"endmodule\n\n\n"
         return file_string
-'''
 
 class VDC_RNS(RNS):
     """

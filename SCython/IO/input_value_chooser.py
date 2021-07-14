@@ -5,30 +5,30 @@ def choose_input_values(num_values, bipolar, mode, seed=None, precision=None, da
     """
     Method for choosing input values for simulation of a stochastic circuit.
     :param num_values: number of input values.
-    :param bipolar: whether the input values are bipolar or not.
+    :param bipolar: whether the input values are bipolar (bipolar=True) or unipolar (bipolar=False).
     :param mode: determines how input values are selected. Choices include:
     'rand' (or 0): values are chosen uniformly randomly.
     'data' (or 1) values are taken from a random subsequence of given data. requires use of data param.
     :param seed: optional parameter. If given, seed is passed to np.random.seed before executing the rest of this method.
     This parameter is used so that results can be replicated.
-    :param precision: optional parameter. If given, the sampled input values will be quantized using SNG.q_floor.
-    :param data: required parameter when mode = 'data' (or 1). This is the data from which a random sequence will be
+    :param precision: optional parameter. If given, the sampled input values will be quantized down (i.e., with the
+    floor operation) to the given precision.
+    :param data: required parameter when mode='data' (or mode=1). This is the data from which a random sequence will be
     sampled from.
-    :param start: optional parameter when mode = 'data' (or 1). If specified, start will used as the beginning of the
+    :param start: optional parameter when mode='data' (or mode=1). If specified, start will used as the beginning of the
     sampled sequence rather than a random start value.
     :return:
     """
     if seed is not None:
         np.random.seed(seed)
     if mode == 0 or mode == 'rand':
-        input_values = np.random.rand(num_values)
+        input_values = np.random.random_sample(num_values)
         if bipolar:
             input_values = 2*input_values - 1
 
     elif mode == 1 or mode == 'data':
         # check the required data parameter
-
-        assert data is not None, "Error: Using choose_input_values method with mode = 'data', but no data given"
+        assert data is not None, "Error: Using choose_input_values method with mode='data', but no data given"
         if bipolar:
             assert -1 <= data <= 1, "Error: values in data given to choose_input values do not fall in [-1,1]"
         else:

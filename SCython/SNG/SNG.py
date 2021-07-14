@@ -17,14 +17,14 @@ def q_floor(x, precision, signed=False) -> np.ndarray:
     return np.floor(x*pow2n)/pow2n
 
 
-def q_nearest(x, precision) -> np.ndarray:
+def q_nearest(x, precision, signed=False) -> np.ndarray:
     """
     rounds x to specified precision (rounds to nearest)
     :param numpy.ndarray x:
     :param int precision:
     :return:
     """
-    pow2n = 2**precision
+    pow2n = 2**(precision-int(signed))
     return np.round(x*pow2n)/pow2n
 
 
