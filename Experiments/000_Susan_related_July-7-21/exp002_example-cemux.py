@@ -22,17 +22,6 @@ def get_filter_coefs(mode):
 
     return coefs
 
-def get_filter_coefs_temp(mode):
-    coefs = None
-    if mode == 'ifir':
-        coefs1 = np.random.rand(30)
-        coefs2 = np.random.rand(20)
-        coefs = coefs1, coefs2
-    elif mode == 'fir':
-        coefs = np.random.rand(50)
-
-    return coefs
-
 
 if __name__ == '__main__':
     # simulation parameters that you will often want to change
@@ -41,8 +30,8 @@ if __name__ == '__main__':
     input_mode = 'rand'  # see SCython.IO.input_value_chooser.choose_input_values for more details on this mode.
     bipolar = True  # True means to use bipolar SNs rather than unipolar SNs
     do_BC = True  # if True, track data for binary computing
-    ifir_coefs = get_filter_coefs_temp(mode='ifir')  # get the two sets of filter coefficients for IFIR design
-    fir_coefs = get_filter_coefs_temp(mode='fir')  # get the one set of filter coefficients for FIR design
+    ifir_coefs = get_filter_coefs(mode='ifir')  # get the two sets of filter coefficients for IFIR design
+    fir_coefs = get_filter_coefs(mode='fir')  # get the one set of filter coefficients for FIR design
     fir_input_size = len(fir_coefs)
     ifir1_input_size = len(ifir_coefs[0])
     ifir2_input_size = len(ifir_coefs[1])
