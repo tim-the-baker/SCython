@@ -35,10 +35,8 @@ if __name__ == '__main__':
     fir_input_size = len(fir_coefs)
     ifir1_input_size = len(ifir_coefs[0])
     ifir2_input_size = len(ifir_coefs[1])
-    num_runs = 500  # increase this after testing code
-    random_signal_size = num_runs + max(len(ifir_coefs[0]) + len(ifir_coefs[1]), len(fir_coefs)) + 1
     random_signal_size = 500  # increase this after testing code
-    num_runs = random_signal_size + fir_input_size + 1
+    num_runs = random_signal_size + max(fir_input_size, ifir1_input_size+ifir2_input_size) + 1
 
     # arrays to store data and other bookkeeping
     Z_hats = np.zeros((4, 2, len(precisions), num_runs))  # array for holding SC and BC estimated output values
@@ -67,7 +65,7 @@ if __name__ == '__main__':
         quantized_ifir2_coefs = SNG.q_nearest(ifir_coefs[1], precision, signed=bipolar)
 
         # in this loop, we do SC FIR, BC FIR, SC IFIR stage 1. Next loop we do SC IFIR stage 2
-        for r_idx in range(random_signal_size):
+        for r_idx in range(num_runs):
             # get this run's input values then get target outputs
             fir_input_values = random_signal[r_idx:r_idx+fir_input_size]
             ifir1_input_values = random_signal[r_idx:r_idx+ifir1_input_size]
@@ -91,12 +89,13 @@ if __name__ == '__main__':
             Z_hats[ifir1_idx, sc_idx, prec_idx, r_idx] = SN_ops.get_SN_value(SN_Z, bipolar)
 
         # in this loop, we do SC IFIR stage 2 and SC IFIR total
-        for r_idx in range(num_runs):
+        for r_idx in range(random_signal_size):
             # TODO: this loop
             pass
 
     # compute the errors. This array contains the error of every simulation run.
     errors = Z_hats - Z_stars
+    errors = errors[..., 0:random_signal_size]  # the ... notation means skip to indexing the last dimension of errors.
 
     # TODO: dont forget to scale the binary errors.
 
