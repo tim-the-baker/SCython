@@ -3,7 +3,7 @@ from SCython.Utilities import verilog_file_generator as vfg
 
 if __name__ == '__main__':
     # TODO Update the following four parameters
-    precisions = 8
+    precision = 8
     coefficients = np.array([1, -1, 1, -1, 1, 0, 1, -1, -1, 0, 0])  # filter coefficients
     # directory is a string representing where you want to store the verilog file.
     directory = r"C:\Users\Tim\PycharmProjects\stochastic-computing\Experiments\000_Susan_related_July-7-21\data\verilog\scratch_tests"
