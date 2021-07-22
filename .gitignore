@@ -12,3 +12,4 @@ Data
 Experiments
 Tests
 *.ipynb
+!Experiments/000_Susan_related_July-7-21
