@@ -1,6 +1,6 @@
 import numpy as np
 from SCython.SNG import SNG, RNS, PCC, MSG
-from SCython.IO import seq_utils
+from SCython.Utilities import seq_utils
 
 # TODO Implement symmetric coefficient in forward method
 class HardwiredMux:

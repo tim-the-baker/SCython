@@ -1,5 +1,5 @@
 import numpy as np
-from SCython.IO import seq_utils
+from SCython.Utilities import seq_utils
 import math
 
 class RNS:
@@ -59,15 +59,6 @@ class RNS:
 
         return Rs
 
-    def gen_verilog(self, IDs) -> str:
-        """
-        TODO: This docstring
-        :param IDs:
-        :return:
-        This method generates Verilog code for the RNS. Software RNSs should return 'None' for this
-        """
-        raise NotImplementedError
-
     def __str__(self) -> str:
         return self.name
 
@@ -99,7 +90,6 @@ class RNS:
 
 
 # TODO: Update this class from PyTorch
-'''
 class Bernoulli_RNS(RNS):
     """
     Software implemented Bernoulli-type RNS. This RNS is mainly used to check theoretical derivations made using the
@@ -111,9 +101,6 @@ class Bernoulli_RNS(RNS):
         :param n: the precision, in bits, of the random numbers generated.
         """
         super().__init__(n)
-        # software Bernoulli RNS can handle arbitrarily large SNs so max_N maintains its default value
-        self._max_N = self._max_N
-
         self.name = "Bernoulli"
         self.legend = "Bern"  # string used in plot legends
         self.hardware = False
@@ -123,16 +110,11 @@ class Bernoulli_RNS(RNS):
             R = np.random.randint(low=0, high=int(2**self.n), size=N)
             Rs = np.repeat(R[np.newaxis], repeats=math.prod(shape), axis=0).reshape(*shape, N)
         else:
-            Rs = np.random.randint(low=0, high=16, size=(*shape, N))
+            Rs = np.random.randint(low=0, high=int(2**self.n), size=(*shape, N))
 
         return Rs
 
-    def gen_verilog(self, IDs=None, verbose=True):
-        super().verilog_info(verbose)
-        return None
-'''
 
-# TODO: Update this class from PyTorch
 class Hypergeometric_RNS(RNS):
     # software hypergeometric RNG
     def __init__(self, n):
@@ -151,10 +133,6 @@ class Hypergeometric_RNS(RNS):
             Rs = np.array([np.random.permutation(self._max_N)[:N] for _ in range(math.prod(SN_array_shape))]).reshape((*SN_array_shape, N))
 
         return Rs
-
-    def gen_verilog(self, verbose=True):
-        super().verilog_info(verbose)
-        return None
 
 
 # TODO: Update this class from PyTorch
@@ -294,7 +272,7 @@ class FSR_RNS(RNS):
 
 class Counter_RNS(RNS):
     """
-    RNS class for a Van der Corput low discrepancy sequence source.
+    RNS class for a counter random number source.
     """
     def __init__(self, n, **kwargs):
         super().__init__(n)
@@ -311,25 +289,6 @@ class Counter_RNS(RNS):
 
         return np.tile(self.seq, reps=math.prod(shape)).reshape(*shape, N)
 
-    def gen_verilog(self, IDs=None, verbose=True):
-        assert self._max_N == int(2**self.n), "Counter verilog only works for counters that use their whole sequence."
-        super().verilog_info(verbose)
-        print("Warning: Counters are generated with a rev_state output (so that VDC can be used). This should be free.")
-        file_string = f"module counter (\n" \
-                      f"\tinput  clock, reset,\n" \
-                      f"\toutput logic [{self.n - 1}:0] state,\n" \
-                      f"\toutput logic [{self.n - 1}:0] rev_state\n);\n" \
-                      f"\talways_comb begin\n" \
-                      f"\t\tfor (int i = 0; i < {self.n}; i+=1) begin\n" \
-                      f"\t\t\trev_state[i] = state[{self.n - 1}-i];\n" \
-                      f"\t\tend\n" \
-                      f"\tend\n\n" \
-                      f"\talways_ff @(posedge clock) begin\n" \
-                      f"\t\tif (reset == 1) state <= #1 'b0; else\n" \
-                      f"\t\t                state <= #1 state +1;\n" \
-                      f"\tend\n" \
-                      f"endmodule\n\n\n"
-        return file_string
 
 class VDC_RNS(RNS):
     """
@@ -353,24 +312,6 @@ class VDC_RNS(RNS):
         assert share or sum(shape) == 1
 
         return np.tile(self.seq, reps=math.prod(shape)).reshape(*shape, N)
-
-    def gen_verilog(self, IDs, verbose=True):
-        super().verilog_info(verbose)
-        file_string = f"module counter (\n" \
-                      f"\tinput  clock, reset,\n" \
-                      f"\toutput logic [{self.n-1}:0] state,\n" \
-                      f"\toutput logic [{self.n-1}:0] rev_state\n);\n" \
-                      f"\talways_comb begin\n" \
-                      f"\t\tfor (int i = 0; i < {self.n}; i+=1) begin\n" \
-                      f"\t\t\trev_state[i] = state[{self.n-1}-i];\n" \
-                      f"\t\tend\n" \
-                      f"\tend\n\n" \
-                      f"\talways_ff @(posedge clock) begin\n" \
-                      f"\t\tif (reset == 1) state <= 'b0; else\n" \
-                      f"\t\t                state <= state + 1;\n" \
-                      f"\tend\n" \
-                      f"endmodule\n\n\n"
-        return file_string
 
     def gen_RN_posneg(self):
         pos_neg = np.empty((2, len(self.seq)), dtype=int)

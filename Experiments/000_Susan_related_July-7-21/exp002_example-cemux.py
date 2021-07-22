@@ -1,11 +1,9 @@
 import numpy as np
-from scipy import io
-from scipy import signal
 import matplotlib.pyplot as plt
 from SCython.SNG import PCC, SNG
-from SCython.IO import seq_utils, input_value_chooser
+from SCython.Utilities import seq_utils, input_value_chooser
 from SCython.Circuits import mux_adders
-import SCython.SN_operations as SN_ops
+import SCython.Utilities.SN_operations as SN_ops
 
 def get_filter_coefs(mode):
     coefs = None

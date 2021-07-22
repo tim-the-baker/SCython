@@ -15,12 +15,13 @@ def get_SN_value(SN_array, bipolar):
 
     return values
 
-def get_SCC(Xs, Ys, pxs, pys):
+def get_SCC(Xs, Ys, pxs, pys, do_cov):
     """
     :param Xs: List of SNs to measure SCC.
     :param Ys: List of other SN to measure SCC (must be same size as Xs)
     :param pxs: Xs' values if known  (value will be estimated if not given)
     :param pys: Ys' values if known  (value will be estimated if not given)
+    :param do_cov: If true, the covariance of the bit-streams are returned rather than their SCC.
     :return:
     """
     # Do some checking
@@ -47,8 +48,9 @@ def get_SCC(Xs, Ys, pxs, pys):
     zero_covs = covariances == 0
 
     # Compute the SCC by dividing the covariance by the proper SCC normalizing factor
-    covariances[pos_covs] /= np.minimum(pxs[pos_covs], pys[pos_covs]) - pxs[pos_covs]*pys[pos_covs]
-    covariances[neg_covs] /= pxs[neg_covs]*pys[neg_covs] - np.clip(pxs[neg_covs] + pys[neg_covs] - 1, a_min=0, a_max=None)
-    covariances[zero_covs] = 0
+    if not do_cov:
+        covariances[pos_covs] /= np.minimum(pxs[pos_covs], pys[pos_covs]) - pxs[pos_covs]*pys[pos_covs]
+        covariances[neg_covs] /= pxs[neg_covs]*pys[neg_covs] - np.clip(pxs[neg_covs] + pys[neg_covs] - 1, a_min=0, a_max=None)
+        covariances[zero_covs] = 0
 
     return covariances
