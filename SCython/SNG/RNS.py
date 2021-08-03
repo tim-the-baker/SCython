@@ -4,8 +4,15 @@ import math
 
 class RNS:
     """ Abstract class for stochastic computing random number sources """
-    def __init__(self, n, **kwargs):
-        self._n: int = n
+    def __init__(self, precision, **kwargs):
+        """
+        :param precision: bit-width of the RNS.
+        :param kwargs: Extra parameters mainly for hardware RNSs. Current choices include:
+            feedback: LFSR feedback type (internal: 'i', external: 'e' or all: 'a')
+            seqs: Pre-loaded seqs (seqs should correspond to n-bit RNS). (Note this class now automatically loads seqs.
+            seq_idx: index of specific seq in seqs that should be used; seqs should be specified when using this.
+        """
+        self._n: int = precision
         self._max_N: int = -1
         self.name: str = ""
         self.legend: str = ""
@@ -22,7 +29,7 @@ class RNS:
         """
         raise NotImplementedError
 
-    def gen_RN(self, N: int, shape, share, inv_mask=None) -> np.ndarray:
+    def gen_RN(self, N, shape, share, inv_mask=None) -> np.ndarray:
         """
         Generates an array of random numbers used for SN generation. Can implement sharing the RNS directly by setting
         share=True and can implement sharing the inverted RNS by using share=True and the inv_mask param. This
@@ -69,17 +76,6 @@ class RNS:
         """
         return f"### RNS Info: name={self.name} n={self._n} max_N={self._max_N}"
 
-    def verilog_info(self, verbose):
-        """
-        TODO: this docstring
-        :param verbose:
-        :return:
-        """
-        if not self.is_hardware:
-            print(f"Warning: Trying to generate verilog for software RNS type {self.name}")
-        elif verbose:
-            print(f"### Generating verilog for RNS {self.name}")
-
     @property
     def n(self):
         return self._n
@@ -89,18 +85,17 @@ class RNS:
         return self._max_N
 
 
-# TODO: Update this class from PyTorch
 class Bernoulli_RNS(RNS):
     """
     Software implemented Bernoulli-type RNS. This RNS is mainly used to check theoretical derivations made using the
     Bernoulli model of SNs. It relies on NumPy's np.random.randint method whose RN quality is sufficiently high to
     imitate independent random numbers.
     """
-    def __init__(self, n):
+    def __init__(self, precision):
         """
-        :param n: the precision, in bits, of the random numbers generated.
+        :param precision: the precision, in bits, of the random numbers generated.
         """
-        super().__init__(n)
+        super().__init__(precision)
         self.name = "Bernoulli"
         self.legend = "Bern"  # string used in plot legends
         self.hardware = False
@@ -116,9 +111,13 @@ class Bernoulli_RNS(RNS):
 
 
 class Hypergeometric_RNS(RNS):
-    # software hypergeometric RNG
-    def __init__(self, n):
-        super().__init__(n)
+    """
+    Software implemented Hypergeometric-type RNS. This RNS is mainly used to check theoretical derivations made using the
+    Hypergeometric model of SNs. It relies on NumPy's np.random.permutation method whose RN quality is sufficiently high to
+    imitate hypergeometric random numbers.
+    """
+    def __init__(self, precision):
+        super().__init__(precision)
         self.name = "Hypergeometric"
         self.legend = "Hyper"
         self.is_hardware = False
@@ -274,9 +273,9 @@ class Counter_RNS(RNS):
     """
     RNS class for a counter random number source.
     """
-    def __init__(self, n, **kwargs):
-        super().__init__(n)
-        pow2n = int(2**n)
+    def __init__(self, precision, **kwargs):
+        super().__init__(precision)
+        pow2n = int(2 ** precision)
         self.name = "Counter"
         self.legend = "Counter"
         self.is_hardware = True
@@ -294,10 +293,10 @@ class VDC_RNS(RNS):
     """
     RNS class for a Van der Corput low discrepancy sequence source.
     """
-    def __init__(self, n, **kwargs):
-        super().__init__(n)
+    def __init__(self, precision, **kwargs):
+        super().__init__(precision)
 
-        pow2n = int(2**n)
+        pow2n = int(2 ** precision)
 
         self.name = "VDC"
         self.legend = "VDC"
@@ -305,7 +304,7 @@ class VDC_RNS(RNS):
         self._max_N = pow2n
         self.seq = kwargs.get('vdc_seq')
         if self.seq is None:
-            self.seq = seq_utils.get_vdc(n, verbose=True)
+            self.seq = seq_utils.get_vdc(precision, verbose=True)
 
     def _gen_RN(self, N, shape, share):
         assert N <= self._max_N
@@ -313,11 +312,40 @@ class VDC_RNS(RNS):
 
         return np.tile(self.seq, reps=math.prod(shape)).reshape(*shape, N)
 
-    def gen_RN_posneg(self):
-        pos_neg = np.empty((2, len(self.seq)), dtype=int)
-        pos_neg[0] = self.seq
-        pos_neg[1] = int(2 ** self.n) - 1 - self.seq  # inverting all bits is the same as doing Rs= (2^n -1-Rs)
-        return pos_neg
+
+class SOBOL_RNS(RNS):
+    """
+    RNS class for a Sobol low discrepancy sequence source.
+    """
+    def __init__(self, precision, **kwargs):
+        super().__init__(precision)
+
+        pow2n = int(2 ** precision)
+
+        self.name = "Sobol"
+        self.legend = "Sobol"
+        self.is_hardware = True
+        self._max_N = pow2n
+        self.seqs = kwargs.get('seqs')
+        self.seq_idxs = kwargs.get('seq_idxs')
+        if self.seqs is None:
+            self.seqs = seq_utils.get_Sobol_seqs(precision, verbose=True)
+
+    def _gen_RN(self, N, shape, share):
+        shape_size = math.prod(shape)
+        assert N <= self._max_N
+        assert share or shape_size <= len(self.seqs)
+
+        if share:
+            # pick a random sequence if one wasn't given
+            seq_idx = np.random.randint(len(self.seqs)) if self.seq_idxs is None else self.seq_idxs[0]
+            Rs = np.tile(self.seqs[seq_idx], reps=math.prod(shape)).reshape(*shape, N)
+        else:
+            seq_idxs = np.random.permutation(shape_size)[:shape_size] if self.seq_idxs is None else self.seq_idxs[:shape_size]
+            Rs = self.seqs[seq_idxs].reshape(*shape, N)
+
+        return Rs
+
 
 
 # TODO: Update this class from PyTorch

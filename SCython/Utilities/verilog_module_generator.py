@@ -1,7 +1,7 @@
 # TODO: Account for coefficients who weights are zero. Important for when flattened synthesis is *not* used.
 import numpy as np
 from SCython.SNG import RNS, PCC
-from SCython.Circuits import mux_adders
+from SCython.Circuits import stream_adders
 
 ####################################
 #   Random Number Source Modules   #
@@ -111,6 +111,81 @@ def gen_verilog_comparator_array(precision, share_r, invert_list, full_correlati
 
     return file_string
 
+
+def gen_verilog_wbg_p1(precision):
+    n = precision
+    file_string = f"module wbg_p1  (\n" \
+                  f"\tinput  logic [{n-1}:0]     r,\n" \
+                  f"\toutput logic [{n-1}:0]     out\n);\n"
+    inverts = ""
+    for idx in range(n-1, -1, -1):  # loop backwards
+        file_string += f"\tassign out[{idx}] = r[{idx}]{inverts};\n"
+        inverts += f" & ~r[{idx}]"
+    file_string += "endmodule\n\n\n"
+    return file_string
+
+
+def gen_verilog_wbg_p2(precision, bipolar, invert_output):
+    n = precision
+    module_name = "wbg_p2_inv" if invert_output else "wbg_p2"
+    file_string = f"module {module_name} (\n" \
+                  f"\tinput  logic [{n-1}:0]     w,\n" \
+                  f"\tinput  logic [{n-1}:0]     p,\n" \
+                  f"\toutput logic           out\n);\n"
+
+    if bipolar:  # invert MSB of control input
+        p_str = "p2"
+        file_string += f"\tlogic [{n - 1}:0] p2;\n"
+        file_string += f"\tassign p2[{n-1}] = ~p[{n-1}];\n" \
+                       f"\tassign p2[{n-2}:0] = p[{n-2}:0];\n"
+    else:
+        p_str = "p"
+
+    file_string += f"\tlogic [{n-1}:0] u;\n"
+    file_string += f"\tassign u = w & {p_str};\n"
+
+    if invert_output:
+        file_string += f"\tassign out = ~(|u);\n"
+    else:
+        file_string += f"\tassign out = |u;\n"
+
+    file_string += f"endmodule\n\n\n"
+    return file_string
+
+
+def gen_verilog_wbg_array(precision, share_r, invert_list, full_correlation, ID=""):
+    assert share_r, "Only sharing R is implemented at the moment."
+    n = precision
+    M = len(invert_list)
+
+    file_string = f"module wbg_array{ID}  (\n" \
+                  f"\tinput  logic [{n - 1}:0]     in  [{M-1}:0],\n" \
+                  f"\tinput  logic [{n - 1}:0]     r,\n" \
+                  f"\toutput logic           SNs  [{M-1}:0]\n);\n"
+
+    file_string += f"\tlogic [{n-1}:0] w;\n"
+    file_string += f"\twbg_p1 wbgp1(.r(r), .out(w));\n\n"
+
+    if full_correlation:
+        # Handle inverted WBG P1 with inverted R input if corr_adj is used
+        file_string += f"\tlogic [{n-1}:0] w_neg;\n"
+        file_string += f"\twbg_p1 wbgp1_inv(.r(~r), .out(w_neg));\n\n"
+        w_neg = "w_neg"
+        spacing = " " * 4
+    else:
+        w_neg = "w"
+        spacing = ""
+
+    for j in range(M):
+        if invert_list[j] == 1:
+            file_string += f"\twbg_p2_inv wbg{j}(.w({w_neg}), .p(in[{j}]), .out(SNs[{j}]));\n"
+        else:
+            file_string += f"\twbg_p2     wbg{j}(.w(w), {spacing}.p(in[{j}]), .out(SNs[{j}]));\n"
+
+    file_string += f"endmodule\n\n\n"
+    return file_string
+
+
 ##########################################
 #   FIR Filter and Filterbank Modules   #
 ##########################################
@@ -181,7 +256,7 @@ def gen_verilog_filter_memory(quant_norm_coefs, pcc_precision, rns_precision, ga
 
 
 #########################
-#   MUX Adder Modules   #
+#   MUX/MAJ Adder Modules   #
 #########################
 # TODO Doc string
 def gen_verilog_hardwired_mux_tree(quant_norm_weights, hdl_wire_map, tree_height, ID=""):
@@ -212,6 +287,44 @@ def gen_verilog_hardwired_mux_tree(quant_norm_weights, hdl_wire_map, tree_height
             for mux in range(num_mux):
                 file_string += f"\tassign level{level}[{mux}] = mux_select[{level}] ? level{level-1}[{2*mux}] :" \
                                f" level{level-1}[{2*mux+1}];\n"
+    file_string += "\n"
+    file_string += f"\tassign out_SN = level{m-1}[0];\n"
+    file_string += f"endmodule\n\n\n"
+    return file_string
+
+
+def gen_verilog_hardwired_maj_tree(quant_norm_weights, hdl_wire_map, tree_height, ID=""):
+    M = (quant_norm_weights != 0).sum()
+    m = tree_height
+
+    file_string = f"module hw_tree{ID}  (\n" \
+                  f"\tinput  logic           data_SNs  [{M-1}:0],\n" \
+                  f"\tinput  logic [{m-1}:0]     select_SN,\n" \
+                  f"\toutput logic           out_SN\n);\n"
+
+    # Initialize an array of wires for every level in the mux tree. (for internal signals)
+    num_maj = int(2**m)
+    for level in range(m):
+        num_maj //= 2
+        file_string += f"\tlogic level{level}  [{num_maj-1}:0];\n"
+
+    # Assign the just initialized wires
+    num_maj = int(2 ** m)
+    for level in range(m):
+        file_string += "\n"
+        num_maj //= 2
+        if level == 0:
+            for maj_idx in range(num_maj):
+                data_SN1 = f"data_SNs[{hdl_wire_map[2*maj_idx]}]"
+                data_SN2 = f"data_SNs[{hdl_wire_map[2*maj_idx+1]}]"
+                select = f"select_SN[{level}]"
+                file_string += f"\tassign level{level}[{maj_idx}] = ({select}&{data_SN1}) | ({select}&{data_SN2}) | ({data_SN1}&{data_SN2});\n"
+        else:
+            for maj_idx in range(num_maj):
+                data_SN1 = f"level{level-1}[{2*maj_idx}]"
+                data_SN2 = f"level{level-1}[{2*maj_idx+1}]"
+                select = f"select_SN[{level}]"
+                file_string += f"\tassign level{level}[{maj_idx}] = ({select}&{data_SN1}) | ({select}&{data_SN2}) | ({data_SN1}&{data_SN2});\n"
     file_string += "\n"
     file_string += f"\tassign out_SN = level{m-1}[0];\n"
     file_string += f"endmodule\n\n\n"
@@ -253,10 +366,12 @@ def gen_verilog_output_counter(precision, bipolar, ID=""):
 #   High-level Circuit Modules   #
 ##################################
 # TODO: Docstring
-def gen_verilog_cemux_filtercore(precision, pcc_input_size, pcc_array_ID, tree_ID, output_ID):
-    rns_n = precision
-    pcc_n = precision
+def gen_verilog_cemux_filtercore(precision, pcc_input_size, pcc_array_ID, tree_ID, output_ID, latency_factor=None):
+    latency_factor = precision if latency_factor is None else latency_factor
+    assert latency_factor >= precision, "Latency factor must be at least as large as the precision"
+    rns_n, pcc_n = latency_factor, precision
     M = pcc_input_size
+
     file_string = f"module filter_core (\n" \
                    f"\tinput  clock, reset,\n" \
                    f"\tinput  logic [{pcc_n-1}:0]  pcc_in [{M-1}:0],\n" \
@@ -270,7 +385,7 @@ def gen_verilog_cemux_filtercore(precision, pcc_input_size, pcc_array_ID, tree_I
 
     # Write the PCC array
     pcc_array_name = f"compara_array{pcc_array_ID}"
-    file_string += f"\t{pcc_array_name} pccs{pcc_array_ID}(.in(pcc_in), .r(r[{pcc_n-1}:0]), .SNs(data_SNs));\n"
+    file_string += f"\t{pcc_array_name} pccs{pcc_array_ID}(.in(pcc_in), .r(r[{rns_n-1}:{rns_n-pcc_n}]), .SNs(data_SNs));\n"
 
     # Write the mux tree
     file_string += "\n"
@@ -282,9 +397,43 @@ def gen_verilog_cemux_filtercore(precision, pcc_input_size, pcc_array_ID, tree_I
     return file_string
 
 
+def gen_verilog_cemaj_filtercore(precision, pcc_input_size, pcc_array_ID, tree_ID, output_ID, latency_factor=None):
+    latency_factor = precision if latency_factor is None else latency_factor
+    assert latency_factor >= precision, "Latency factor must be at least as large as the precision"
+    rns_n, pcc_n = latency_factor, precision
+
+    M = pcc_input_size
+    file_string = f"module filter_core (\n" \
+                  f"\tinput  clock, reset,\n" \
+                  f"\tinput  logic [{pcc_n-1}:0]  pcc_in [{M-1}:0],\n" \
+                  f"\tinput  logic [{rns_n-1}:0]  mux_select,\n" \
+                  f"\tinput  logic [{rns_n-1}:0]  r,\n" \
+                  f"\toutput logic [{rns_n-1}:0]  out\n);\n"
+
+    # Initialize wires
+    file_string += f"\tlogic       data_SNs         [{M-1}:0];\n" \
+                   f"\tlogic       tree_out;\n\n"
+
+    # Write the PCC array
+    pcc_array_name = f"wbg_array{pcc_array_ID}"
+    file_string += f"\t{pcc_array_name} pccs{pcc_array_ID}(.in(pcc_in), .r(r[{rns_n-1}:{rns_n-pcc_n}]), .SNs(data_SNs));\n"
+
+    # Write the mux tree
+    file_string += "\n"
+    file_string += f"\thw_tree{tree_ID} tree{tree_ID}(.data_SNs(data_SNs), .select_SN(mux_select), .out_SN(tree_out));\n"
+
+    # Write the output counter
+    file_string += f"\ten_counter{output_ID} est{output_ID}(.clock(clock), .reset(reset), .en(tree_out), .out(out));\n"
+    file_string += "endmodule\n\n\n"
+    return file_string
+
+
 # TODO: Docstring
-def gen_verilog_cemux_toplevel(precision, pcc_input_size, gated=True):
-    rns_n, pcc_n = precision, precision
+def gen_verilog_cemux_toplevel(precision, pcc_input_size, gated=True, latency_factor=None):
+    latency_factor = precision if latency_factor is None else latency_factor
+    assert latency_factor >= precision, "Latency factor must be at least as large as the precision"
+    rns_n, pcc_n = latency_factor, precision
+
     # Generate the verilog for the top level module
     file_string = f"module filter (\n" \
                   f"\tinput  clock, reset,\n" \

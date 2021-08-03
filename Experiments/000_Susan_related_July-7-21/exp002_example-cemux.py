@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from SCython.SNG import PCC, SNG
 from SCython.Utilities import seq_utils, input_value_chooser
-from SCython.Circuits import mux_adders
+from SCython.Circuits import stream_adders
 import SCython.Utilities.SN_operations as SN_ops
 
 def get_filter_coefs(mode):
@@ -53,9 +53,9 @@ if __name__ == '__main__':
         tree_height = precision
         vdc_seq = seq_utils.get_vdc(precision)
         SN_length = int(2**precision)
-        fir_cemux = mux_adders.CeMux(tree_height, fir_coefs, pcc, bipolar=bipolar, vdc_seq=vdc_seq)
-        ifir1_cemux = mux_adders.CeMux(tree_height, ifir_coefs[0], pcc, bipolar=bipolar, vdc_seq=vdc_seq)
-        ifir2_cemux = mux_adders.CeMux(tree_height, ifir_coefs[1], pcc, bipolar=bipolar, vdc_seq=vdc_seq)
+        fir_cemux = stream_adders.CeMux(tree_height, fir_coefs, pcc, bipolar=bipolar, vdc_seq=vdc_seq)
+        ifir1_cemux = stream_adders.CeMux(tree_height, ifir_coefs[0], pcc, bipolar=bipolar, vdc_seq=vdc_seq)
+        ifir2_cemux = stream_adders.CeMux(tree_height, ifir_coefs[1], pcc, bipolar=bipolar, vdc_seq=vdc_seq)
 
         # for use with binary computing
         quantized_fir_coefs = SNG.q_nearest(fir_coefs, precision, signed=bipolar)

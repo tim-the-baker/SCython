@@ -1,4 +1,5 @@
 import numpy as np
+import scipy.io as sp_io
 import os
 
 # Useful directories
@@ -23,6 +24,29 @@ def get_vdc(n, verbose=True):
         seq[idx] = sum([int(2**b_idx * int(bit)) for b_idx, bit in enumerate(bin_rep)])
     return seq
 
+
+def get_Sobol_seqs(precision, verbose=True):
+    """
+    Retrieves four Sobol sequences that were generated using MATLAB. Converts them to given precision.
+    :param precision: the desired precision of the sequences.
+    :param verbose: when True, a message is printed that indicates this method is run. This method is slow and should
+    only be run once during the entire simulation rather than once per simulation run.
+    :return: the n-bit integer Sobol sequence
+    """
+    assert precision <= 16, "Sobol sequences only go up to 16 bits."
+    if verbose:
+        print(f"Retrieving {precision}-bit Sobol sequences")
+
+    # Load the sequences. seq's shape is (4, 2^(16)
+    seqs = sp_io.loadmat(f"{SOBOL_SEQ_DIR}\sobol_4x65536.mat")['ans'].T
+
+    # Truncate the lists to the correct length
+    seqs = seqs[:, :int(2**precision)]
+
+    # Convert the lists to integers of the desired precision
+    seqs = (seqs*int(2**precision)).astype(int)
+
+    return seqs
 
 # TODO: Convert this file from PyTorch to NumPy
 '''

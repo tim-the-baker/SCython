@@ -22,57 +22,24 @@ def q_nearest(x, precision, signed=False) -> np.ndarray:
     rounds x to specified precision (rounds to nearest)
     :param numpy.ndarray x:
     :param int precision:
+    :param bool signed:
     :return:
     """
     pow2n = 2**(precision-int(signed))
     return np.round(x*pow2n)/pow2n
 
 
-def output_counter_verilog(n: int, bipolar: bool, ID: str = ""):
-    if bipolar:
-        file_string =  f"module en_counter{ID} (\n" \
-                       f"\tinput  clock, reset,\n" \
-                       f"\tinput  logic en,\n" \
-                       f"\toutput logic [{n-1}:0] out\n);\n" \
-                       f"\talways_ff @(posedge clock) begin\n" \
-                       f"\t\tif      (reset == 1)   out <= 'b0;\n" \
-                       f"\t\telse if (en == 1)      out <= out + 1;\n" \
-                       f"\t\telse                   out <= out - 1;\n" \
-                       f"\tend\n" \
-                       f"endmodule\n\n\n"
-    else:
-        file_string =  f"module en_counter(\n" \
-                       f"\tinput  clock, reset,\n" \
-                       f"\tinput  logic en,\n" \
-                       f"\toutput logic [{n - 1}:0] out\n);\n" \
-                       f"\talways_ff @(posedge clock) begin\n" \
-                       f"\t\tif (reset == 1) out <= 'b0; else\n" \
-                       f"\t\t                out <=  out + en;\n" \
-                       f"\tend\n" \
-                       f"endmodule\n\n\n"
-
-    return file_string
-
-
 class SNG:
-    def __init__(self, rns, pcc, rns_precision, pcc_precision, **kwargs):
+    def __init__(self, rns, pcc):
         """
-        :param RNS.RNS rns: RNS class for the SNG (see rns_utils)
-        :param PCC.PCC pcc: PCC class for the SNG (see pcc_utils)
-        :param int rns_precision: bit-width of RNS
-        :param int pcc_precision: bit-width of PCC
-        :param kwargs: Extra parameters mainly for hardware RNSs. Current choices include:
-            feedback: LFSR feedback type (internal: 'i', external: 'e' or all: 'a')
-            seqs: Pre-loaded seqs (seqs should correspond to n-bit RNS). (Note this class now automatically loads seqs.
-            seq_idx: index of specific seq in seqs that should be used; seqs should be specified when using this.
+        :param RNS.RNS rns: RNS of the SNG (see SNG.RNS)
+        :param PCC.PCC pcc: PCC of the SNG (see SNG.RNS)
         """
-        assert rns_precision >= pcc_precision
+        assert rns.n >= pcc.n
         self.q_func = q_floor
 
-        self.rns = rns(rns_precision, **kwargs)
-        self.pcc = pcc(pcc_precision)
-
-        self.vdc_seq = kwargs.get("vdc_seq")
+        self.rns = rns
+        self.pcc = pcc
 
     def gen_SN(self, values, SN_length, bipolar, share_RNS, RNS_mask) -> np.ndarray:
         """

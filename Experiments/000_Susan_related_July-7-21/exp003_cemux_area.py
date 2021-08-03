@@ -3,7 +3,8 @@ from SCython.Utilities import verilog_file_generator as vfg
 
 if __name__ == '__main__':
     # TODO Update the following four parameters
-    precision = 8
+    latency_factor = 10  # SN length is 2^(latency factor).
+    precision = 8  # precision is bit-width of the comparators and registers
     coefficients = np.array([1, -1, 1, -1, 1, 0, 1, -1, -1, 0, 0])  # filter coefficients
     # directory is a string representing where you want to store the verilog file.
     directory = r"C:\Users\Tim\PycharmProjects\stochastic-computing\Experiments\000_Susan_related_July-7-21\data\verilog\scratch_tests"
@@ -22,10 +23,9 @@ if __name__ == '__main__':
 
     # the file name of the verilog file lists relevant parameters:
     # 2^n is the intended SN length. n determines the size of the RNS and mux select input generator.
-    # q is the bitwidth of the PCCs (i.e., comparators). Often we just set q = n, but setting q < n lowers area in exchange for accuracy loss.
+    # q is the bit-width of the PCCs (i.e., comparators). Often we just set q = n, but setting q < n lowers area in exchange for accuracy loss.
     file_string = vfg.gen_verilog_cemux_file_string(precision, coefficients, pcc_array_ID=pcc_array_ID, tree_ID=tree_ID,
-                                                    output_ID=output_ID)
-    file_name = rf"{directory}\cemux_{file_ID}_n{precision}_q{precision}.v"
+                                                    output_ID=output_ID, latency_factor=latency_factor)
+    file_name = rf"{directory}\cemux_{file_ID}_n{latency_factor}_q{precision}.v"
     with open(file_name, "w") as f:
         f.write(file_string)
-
